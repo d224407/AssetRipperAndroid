@@ -13,6 +13,11 @@ on:
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
+    inputs:
+      aot:
+        description: "Also run the experimental NativeAOT probe (informational, never published)"
+        type: boolean
+        default: false
 
 concurrency:
   group: android
@@ -64,10 +69,31 @@ jobs:
           path: src
           token: ${{ secrets.SOURCE_TOKEN || github.token }}
 
-      - uses: actions/setup-dotnet@v4
+      # Use the SDK the source targets: the newest net<N> found in its project files. Try the
+      # released SDK first and fall back to the preview channel while that major is unreleased.
+      - name: Detect required .NET major
+        id: sdk
+        run: |
+          MAJOR=$(grep -rh "<TargetFramework" src/Source --include=*.csproj --include=Directory.Build.props | grep -oE 'net[0-9]+' | sed 's/net//' | sort -n | tail -1)
+          test -n "$MAJOR"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "Source targets .NET $MAJOR"
+
+      - id: sdk_ga
+        uses: actions/setup-dotnet@v4
+        continue-on-error: true
         with:
-          dotnet-version: 10.0.x
-          dotnet-quality: ga
+          dotnet-version: ${{ steps.sdk.outputs.major }}.0.x
+
+      - name: Fall back to the preview SDK
+        if: steps.sdk_ga.outcome == 'failure'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ steps.sdk.outputs.major }}.0.x
+          dotnet-quality: preview
+
+      - name: Show SDK
+        run: dotnet --info | head -20
 
       # One tag identifies the APK and the server bundled inside it.
       - name: Resolve version
@@ -172,3 +198,9 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "$TAG" \
             --notes-file notes.md
+
+      # Informational only: reports whether NativeAOT for linux-bionic-arm64 is possible at all.
+      - name: AOT probe (experimental)
+        if: github.event_name == 'workflow_dispatch' && inputs.aot
+        continue-on-error: true
+        run: bash scripts/aot-probe.sh

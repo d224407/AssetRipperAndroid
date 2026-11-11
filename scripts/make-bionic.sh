@@ -15,8 +15,26 @@ test -n "$VER" || { echo "Cannot read the runtime version from $APP.deps.json" >
 echo "Runtime version: $VER"
 
 PK="$(mktemp -d)"
+
+# fetch <id> <version> <dest.zip>: nuget.org first, then the dotnet<major> feed for preview builds.
+fetch() {
+  local id="$1" ver="$2" dest="$3" lower major url
+  lower=$(echo "$id" | tr 'A-Z' 'a-z')
+  major="${ver%%.*}"
+  for url in \
+    "https://api.nuget.org/v3-flatcontainer/$lower/$ver/$lower.$ver.nupkg" \
+    "https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet$major/nuget/v3/flat2/$lower/$ver/$lower.$ver.nupkg"; do
+    if curl -fsSL -o "$dest" "$url"; then
+      echo "fetched $id $ver from ${url%%/v3*}"
+      return 0
+    fi
+  done
+  echo "Cannot download $id $ver" >&2
+  return 1
+}
+
 for p in Microsoft.NETCore.App.Runtime.linux-bionic-arm64 Microsoft.NETCore.App.Host.linux-bionic-arm64; do
-  curl -fsSL -o "$PK/$p.zip" "https://www.nuget.org/api/v2/package/$p/$VER"
+  fetch "$p" "$VER" "$PK/$p.zip"
   unzip -q -o "$PK/$p.zip" -d "$PK/$p"
 done
 
