@@ -29,6 +29,7 @@ permissions:
 env:
   SOURCE_REPO: ${{ vars.SOURCE_REPO || 'AssetRipper/AssetRipper' }}
   SOURCE_REF: ${{ vars.SOURCE_REF }}
+  OPENSSL_VERSION: "3.5.0"
 
 jobs:
   check:
@@ -121,6 +122,22 @@ jobs:
 
       - name: Convert to linux-bionic-arm64
         run: bash scripts/make-bionic.sh out
+
+      # Android has no OpenSSL that app processes may use, and .NET aborts without one (MD5 and every
+      # other hash/crypto call go through it), so build one with the NDK and ship it with the server.
+      - name: Cache OpenSSL for Android
+        id: ossl
+        uses: actions/cache@v4
+        with:
+          path: openssl-android
+          key: openssl-android-${{ env.OPENSSL_VERSION }}-1
+
+      - name: Build OpenSSL for Android
+        if: steps.ossl.outputs.cache-hit != 'true'
+        run: bash scripts/build-openssl.sh openssl-android
+
+      - name: Add OpenSSL to the server
+        run: cp openssl-android/* out/
 
       - name: Bundle the server into the app
         run: |

@@ -40,6 +40,8 @@ Without them CI still builds, but signs with a throwaway debug key and warns abo
 
 * `targetSdk` is 28 on purpose. Apps targeting 29+ cannot `execve()` files from their own data
   directory, and the server is an ordinary executable (the same approach Termux uses).
+* The server needs OpenSSL for hashing and crypto; CI builds it with the NDK
+  (`scripts/build-openssl.sh`) and ships it next to the server.
 * arm64 only. The first start unpacks about the size of the server (a few hundred MB).
 * `run_number` must keep increasing: do not rename or recreate the workflow, or the version code
   would restart and updates would stop being offered.

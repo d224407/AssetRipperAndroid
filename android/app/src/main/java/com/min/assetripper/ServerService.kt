@@ -114,6 +114,9 @@ class ServerService : Service() {
             env["DOTNET_gcServer"] = "0"
             env["DOTNET_TieredPGO"] = "0"
             env["ASSETRIPPER_ANDROID"] = "1"
+            // Use the OpenSSL bundled next to the server (see scripts/build-openssl.sh).
+            env["CLR_OPENSSL_VERSION_OVERRIDE"] = "3"
+            env["LD_LIBRARY_PATH"] = listOfNotNull(exe.parent, env["LD_LIBRARY_PATH"]).joinToString(":")
             env["HOME"] = home.path
             env["TMPDIR"] = tmp.path
             if (prefs.heapMb > 0) {
