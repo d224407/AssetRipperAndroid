@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="status_stopped">Đã dừng</string>
+    <string name="status_installing">Đang chuẩn bị tệp... %1$d%%</string>
+    <string name="status_starting">Đang khởi động máy chủ...</string>
+    <string name="status_running">Đang chạy ở cổng %1$d</string>
+    <string name="status_error">Lỗi: %1$s</string>
+
+    <string name="card_server">Máy chủ</string>
+    <string name="btn_start">Bật máy chủ</string>
+    <string name="btn_stop">Tắt máy chủ</string>
+    <string name="btn_open">Mở giao diện</string>
+
+    <string name="card_storage">Quyền truy cập bộ nhớ</string>
+    <string name="storage_ok">Đã cấp. Máy chủ đọc được tệp game và ghi được kết quả xuất.</string>
+    <string name="storage_missing">Chưa cấp. Cần để mở tệp game và xuất dữ liệu.</string>
+    <string name="btn_grant">Cấp quyền</string>
+
+    <string name="card_update">Cập nhật</string>
+    <string name="update_current">Đang dùng: bản dựng %1$s (AssetRipper %2$s)</string>
+    <string name="update_uptodate">Bạn đang dùng bản mới nhất.</string>
+    <string name="update_available">Có bản dựng mới: %1$s</string>
+    <string name="btn_check">Kiểm tra cập nhật</string>
+    <string name="btn_update">Tải và cài đặt</string>
+    <string name="update_checking">Đang kiểm tra...</string>
+    <string name="update_downloading">Đang tải... %1$d%%</string>
+    <string name="update_verifying">Đang xác minh...</string>
+    <string name="update_failed">Cập nhật thất bại: %1$s</string>
+    <string name="update_need_permission">Hãy cho phép cài đặt từ ứng dụng này, rồi bấm cập nhật lại.</string>
+    <string name="update_prompt">Có bản dựng mới (%1$s). Tải và cài đặt ngay?</string>
+    <string name="btn_later">Để sau</string>
+
+    <string name="card_tools">Công cụ</string>
+    <string name="btn_logs">Nhật ký máy chủ</string>
+    <string name="btn_settings">Cài đặt</string>
+    <string name="btn_copy">Sao chép</string>
+    <string name="btn_clear">Xóa</string>
+    <string name="btn_close">Đóng</string>
+    <string name="btn_save">Lưu</string>
+    <string name="log_empty">Nhật ký đang trống.</string>
+
+    <string name="settings_title">Cài đặt</string>
+    <string name="set_port">Cổng (0 = tự động)</string>
+    <string name="set_heap">Giới hạn bộ nhớ .NET theo MB (0 = không giới hạn)</string>
+    <string name="set_auto_open">Tự mở giao diện khi máy chủ sẵn sàng</string>
+    <string name="set_wake">Giữ CPU thức khi máy chủ đang chạy</string>
+    <string name="set_auto_update">Kiểm tra cập nhật khi mở ứng dụng</string>
+    <string name="set_language">Ngôn ngữ</string>
+    <string name="set_restart">Hãy khởi động lại máy chủ để áp dụng thay đổi.</string>
+    <string name="lang_system">Theo hệ thống</string>
+    <string name="lang_en">English</string>
+    <string name="lang_vi">Tiếng Việt</string>
+
+    <string name="card_about">Giới thiệu</string>
+    <string name="about_text">Bản dựng ứng dụng %1$s\nAssetRipper %2$s\nMáy chủ: linux-bionic-arm64 (đóng gói sẵn)\nKho mã: %3$s</string>
+
+    <string name="err_abi">Ứng dụng cần thiết bị ARM 64-bit (arm64-v8a).</string>
+    <string name="err_binary_mismatch">Máy chủ đóng gói sẵn không khớp với bản dựng của ứng dụng.</string>
+    <string name="err_exec">Máy chủ đã dừng đột ngột (%1$s).</string>
+    <string name="err_timeout">Máy chủ không sẵn sàng đúng hạn.</string>
+
+    <string name="notif_title">Máy chủ AssetRipper</string>
+    <string name="notif_text">Đang lắng nghe tại 127.0.0.1:%1$d</string>
+    <string name="notif_stop">Dừng</string>
+
+    <string name="web_unreachable">Không kết nối được tới máy chủ. Hãy bật máy chủ ở màn hình chính.</string>
+    <string name="picker_failed">Không đổi được vị trí đó thành đường dẫn tệp. Hãy cấp quyền truy cập mọi tệp và chọn vị trí trong bộ nhớ trong.</string>
+    <string name="download_saved">Đã lưu vào %1$s</string>
+    <string name="download_failed">Tải xuống thất bại: %1$s</string>
+</resources>

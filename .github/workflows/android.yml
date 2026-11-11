@@ -1,0 +1,174 @@
+name: Android
+
+# This repository only holds the Android app and the build scripts. The AssetRipper source is
+# checked out from SOURCE_REPO (default: the upstream project) and is never modified in git.
+# Optional repository variables: SOURCE_REPO (owner/name), SOURCE_REF (branch or tag).
+# Optional secret: SOURCE_TOKEN (only needed if SOURCE_REPO is private).
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - "**/*.md"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: android
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  SOURCE_REPO: ${{ vars.SOURCE_REPO || 'AssetRipper/AssetRipper' }}
+  SOURCE_REF: ${{ vars.SOURCE_REF }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.decide.outputs.build }}
+      sha: ${{ steps.decide.outputs.sha }}
+    steps:
+      # Scheduled runs only build when the source moved since the last release.
+      - id: decide
+        env:
+          GH_TOKEN: ${{ secrets.SOURCE_TOKEN || github.token }}
+          APP_TOKEN: ${{ github.token }}
+        run: |
+          SHA=$(gh api "repos/$SOURCE_REPO/commits/${SOURCE_REF:-HEAD}" --jq .sha)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          BUILD=true
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            BODY=$(GH_TOKEN="$APP_TOKEN" gh release view --repo "${{ github.repository }}" --json body --jq .body 2>/dev/null || true)
+            if echo "$BODY" | grep -q "source: $SHA"; then BUILD=false; fi
+          fi
+          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
+          echo "Source $SOURCE_REPO@$SHA build=$BUILD"
+
+  build:
+    needs: check
+    if: needs.check.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      HAS_KEYSTORE: ${{ secrets.KEYSTORE_CONTENT != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ needs.check.outputs.sha }}
+          path: src
+          token: ${{ secrets.SOURCE_TOKEN || github.token }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+          dotnet-quality: ga
+
+      # One tag identifies the APK and the server bundled inside it.
+      - name: Resolve version
+        id: ver
+        run: |
+          UP=$(grep -oP '<VersionPrefix>\K[^<]+' src/Source/Directory.Build.props | head -1)
+          test -n "$UP"
+          N=${{ github.run_number }}
+          echo "upstream=$UP" >> "$GITHUB_OUTPUT"
+          echo "build=$N" >> "$GITHUB_OUTPUT"
+          echo "tag=v$UP-android.$N" >> "$GITHUB_OUTPUT"
+
+      - name: Apply patches
+        run: bash scripts/apply.sh
+
+      - name: Publish linux-arm64 (self-contained, no AOT)
+        run: >
+          dotnet publish src/Source/AssetRipper.GUI.Free
+          -c Release
+          -r linux-arm64
+          --self-contained
+          -p:PublishAot=false
+          -p:ServerGarbageCollection=false
+          -o out
+
+      - name: Convert to linux-bionic-arm64
+        run: bash scripts/make-bionic.sh out
+
+      - name: Bundle the server into the app
+        run: |
+          mkdir -p android/app/src/main/assets
+          (cd out && zip -qr ../android/app/src/main/assets/ar.zip .)
+          printf 'tag=%s\nupstream=%s\n' "${{ steps.ver.outputs.tag }}" "${{ steps.ver.outputs.upstream }}" \
+            > android/app/src/main/assets/ar.info
+          cp android/app/src/main/assets/ar.zip "AssetRipper-bionic-arm64-${{ steps.ver.outputs.tag }}.zip"
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      # In-app updates only install when the APK is signed with the same key as the installed app.
+      - name: Prepare release keystore
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE_CONTENT: ${{ secrets.KEYSTORE_CONTENT }}
+          KEYSTORE_ALIAS: ${{ secrets.KEYSTORE_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_CONTENT" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=%s\nkeyPassword=%s\n' \
+            "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" "$KEYSTORE_ALIAS" "$KEYSTORE_PASSWORD" \
+            > android/keystore.properties
+
+      - name: Warn about missing keystore
+        if: env.HAS_KEYSTORE != 'true'
+        run: echo "::warning::No KEYSTORE_* secrets. The APK is signed with a throwaway debug key, so it will not install over a previous build. Run scripts/make-keystore.sh once and add the secrets."
+
+      - name: Build APK
+        working-directory: android
+        run: >
+          gradle assembleRelease --no-daemon --stacktrace
+          -PbuildNumber=${{ steps.ver.outputs.build }}
+          -PupstreamVersion=${{ steps.ver.outputs.upstream }}
+          -PgithubRepo=${{ github.repository }}
+
+      - name: Collect release files
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          cp android/app/build/outputs/apk/release/app-release.apk "AssetRipper-Android-$TAG.apk"
+          sha256sum "AssetRipper-Android-$TAG.apk" > "AssetRipper-Android-$TAG.apk.sha256"
+          ls -lh AssetRipper-*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AssetRipper-Android
+          path: |
+            AssetRipper-Android-*.apk
+            AssetRipper-Android-*.apk.sha256
+          if-no-files-found: error
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ steps.ver.outputs.tag }}"
+          printf '%s\n' \
+            "AssetRipper ${{ steps.ver.outputs.upstream }} for Android (build ${{ steps.ver.outputs.build }})." \
+            "" \
+            "The APK bundles the matching linux-bionic-arm64 server; the zip is the same server for Termux." \
+            "" \
+            "source: ${{ needs.check.outputs.sha }}" \
+            "source repo: $SOURCE_REPO" > notes.md
+          gh release create "$TAG" \
+            "AssetRipper-Android-$TAG.apk" \
+            "AssetRipper-Android-$TAG.apk.sha256" \
+            "AssetRipper-bionic-arm64-$TAG.zip" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file notes.md
