@@ -16,6 +16,7 @@ import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.webkit.JavascriptInterface
 import android.webkit.JsPromptResult
 import android.webkit.JsResult
 import android.webkit.URLUtil
@@ -53,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val REQ_PICK = 1001
         private const val REQ_STORAGE = 1002
+        private const val DL_JS = "if(!window.__ardl){window.__ardl=1;document.addEventListener('click'," +
+            "function(e){var a=e.target.closest&&e.target.closest('a[download]');" +
+            "if(a)ARDL.name(a.getAttribute('download')||'')},true)}"
     }
 
     private lateinit var ui: Ui
@@ -73,11 +77,11 @@ class MainActivity : AppCompatActivity() {
     private val io = Executors.newCachedThreadPool()
     private var release: Updater.Release? = null
     private var updating = false
+    private var checked = false
+    @Volatile private var downloadName = ""
     private var lastPhase = ServerState.phase
     private var pickCallback: ((Int, Intent?) -> Unit)? = null
     private val stateListener = Runnable { refresh() }
-
-    // ------------------------------------------------------------------ lifecycle
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -141,8 +145,6 @@ class MainActivity : AppCompatActivity() {
         refresh()
     }
 
-    // ------------------------------------------------------------------ home screen
-
     private fun buildHome(): ScrollView {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
@@ -151,12 +153,11 @@ class MainActivity : AppCompatActivity() {
         col.addView(ui.label(getString(R.string.app_name), 30f, R.color.md_on_surface, bold = true))
         col.addView(
             ui.label(
-                getString(R.string.update_current, BuildConfig.VERSION_NAME, BuildConfig.UPSTREAM_VERSION),
+                getString(R.string.version_line, BuildConfig.VERSION_NAME),
                 14f, R.color.md_on_surface_variant
             ).apply { setPadding(0, ui.dp(4), 0, ui.dp(8)) }
         )
 
-        // Server
         val server = ui.card()
         server.addView(ui.listTitle(getString(R.string.card_server)))
         statusText = ui.label("", 18f, R.color.md_on_surface, bold = true)
@@ -167,7 +168,6 @@ class MainActivity : AppCompatActivity() {
         server.addView(openBtn, ui.lp(top = 8))
         col.addView(server, ui.lp(top = 12))
 
-        // Storage
         val storage = ui.card()
         storage.addView(ui.listTitle(getString(R.string.card_storage)))
         storageText = ui.label("", 15f, R.color.md_on_surface_variant)
@@ -176,7 +176,6 @@ class MainActivity : AppCompatActivity() {
         storage.addView(grantBtn, ui.lp(top = 12))
         col.addView(storage, ui.lp(top = 12))
 
-        // Updates
         val update = ui.card()
         update.addView(ui.listTitle(getString(R.string.card_update)))
         updateText = ui.label("", 15f, R.color.md_on_surface_variant)
@@ -188,23 +187,11 @@ class MainActivity : AppCompatActivity() {
         update.addView(updateBtn, ui.lp(top = 8))
         col.addView(update, ui.lp(top = 12))
 
-        // Tools
         val tools = ui.card()
         tools.addView(ui.listTitle(getString(R.string.card_tools)))
         tools.addView(ui.button(getString(R.string.btn_logs), false) { showLogs() })
         tools.addView(ui.button(getString(R.string.btn_settings), false) { showSettings() }, ui.lp(top = 8))
         col.addView(tools, ui.lp(top = 12))
-
-        // About
-        val about = ui.card()
-        about.addView(ui.listTitle(getString(R.string.card_about)))
-        about.addView(
-            ui.label(
-                getString(R.string.about_text, BuildConfig.VERSION_NAME, BuildConfig.UPSTREAM_VERSION, BuildConfig.GITHUB_REPO),
-                14f, R.color.md_on_surface_variant
-            )
-        )
-        col.addView(about, ui.lp(top = 12))
 
         val scroll = ScrollView(this)
         scroll.isFillViewport = true
@@ -255,8 +242,6 @@ class MainActivity : AppCompatActivity() {
         if (web.url?.startsWith(base) != true) web.loadUrl(base)
     }
 
-    // ------------------------------------------------------------------ web screen
-
     private fun buildWeb(): LinearLayout {
         val box = LinearLayout(this)
         box.orientation = LinearLayout.VERTICAL
@@ -287,10 +272,19 @@ class MainActivity : AppCompatActivity() {
             builtInZoomControls = true
             displayZoomControls = false
         }
+        web.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun name(n: String) {
+                downloadName = n
+            }
+        }, "ARDL")
         web.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView, url: String?) {
+                view.evaluateJavascript(DL_JS, null)
+            }
+
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val u = request.url
-                // The web UI asks the server for native dialogs; answer them with Android pickers.
                 if (u.host == "127.0.0.1" && (u.path ?: "").startsWith("/Dialogs/")) {
                     val body = pick(u.lastPathSegment ?: "")
                     return WebResourceResponse(
@@ -308,7 +302,6 @@ class MainActivity : AppCompatActivity() {
                 try {
                     startActivity(Intent(Intent.ACTION_VIEW, request.url))
                 } catch (e: Exception) {
-                    // No app can open this link.
                 }
                 return true
             }
@@ -374,10 +367,7 @@ class MainActivity : AppCompatActivity() {
         return box
     }
 
-    /**
-     * Called on a WebView worker thread: shows an Android picker and blocks until the user is done.
-     * Returns the JSON the server would have produced (a string, or an array for the plural kinds).
-     */
+    /** Runs on a WebView thread: shows a picker, blocks, returns the server's JSON answer. */
     private fun pick(kind: String): String {
         if (!kind.startsWith("Open")) return "\"\""
         val multiple = kind.endsWith("s")
@@ -429,11 +419,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveDownload(url: String, contentDisposition: String?, mimeType: String?) {
         try {
-            val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+            val given = downloadName
+            downloadName = ""
+            val name = (if (given.isNotBlank()) given.replace('/', '_') else URLUtil.guessFileName(url, contentDisposition, mimeType))
             val base = if (hasStorage()) Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             else (getExternalFilesDir(null) ?: filesDir)
             val dir = File(base, "AssetRipper").apply { mkdirs() }
-            val out = File(dir, name)
+            val dot = name.lastIndexOf('.').let { if (it > 0) it else name.length }
+            var out = File(dir, name)
+            var n = 1
+            while (out.exists()) out = File(dir, name.substring(0, dot) + " (" + n++ + ")" + name.substring(dot))
             val c = URL(url).openConnection() as HttpURLConnection
             try {
                 c.inputStream.use { input -> out.outputStream().use { input.copyTo(it, 1 shl 16) } }
@@ -447,8 +442,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
-
-    // ------------------------------------------------------------------ storage
 
     private fun hasStorage(): Boolean =
         if (Build.VERSION.SDK_INT >= 30) Environment.isExternalStorageManager()
@@ -472,13 +465,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ------------------------------------------------------------------ updates
-
     private fun refreshUpdate() {
         if (updating) return
         val r = release
         updateText.text = if (r != null) getString(R.string.update_available, r.tag)
-        else getString(R.string.update_current, BuildConfig.VERSION_NAME, BuildConfig.UPSTREAM_VERSION)
+        else if (checked) getString(R.string.update_uptodate)
+        else ""
         updateBtn.visibility = if (r != null) View.VISIBLE else View.GONE
     }
 
@@ -491,10 +483,8 @@ class MainActivity : AppCompatActivity() {
                 prefs.lastCheck = System.currentTimeMillis()
                 runOnUiThread {
                     release = latest?.takeIf { Updater.isNewer(it) }
+                    checked = true
                     refreshUpdate()
-                    val r = release
-                    if (r != null && silent) confirmUpdate(r)
-                    else if (r == null && !silent) Toast.makeText(this, R.string.update_uptodate, Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 runOnUiThread {
@@ -504,19 +494,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun confirmUpdate(r: Updater.Release) {
-        AlertDialog.Builder(this)
-            .setMessage(getString(R.string.update_prompt, r.tag))
-            .setPositiveButton(R.string.btn_update) { _, _ -> doUpdate() }
-            .setNegativeButton(R.string.btn_later, null)
-            .show()
-    }
-
     private fun doUpdate() {
         val r = release ?: return
         if (updating) return
         if (!Updater.canInstall(this)) {
-            Toast.makeText(this, R.string.update_need_permission, Toast.LENGTH_LONG).show()
             Updater.openInstallSettings(this)
             return
         }
@@ -530,7 +511,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 runOnUiThread { updateText.text = getString(R.string.update_verifying) }
                 Updater.verify(this, r, apk)
-                // The server must not be running while the app is replaced.
                 runOnUiThread { ServerService.stop(this) }
                 Thread.sleep(800)
                 Updater.install(this, apk)
@@ -550,8 +530,6 @@ class MainActivity : AppCompatActivity() {
         updateBtn.isEnabled = true
         checkBtn.isEnabled = true
     }
-
-    // ------------------------------------------------------------------ dialogs
 
     private fun showLogs() {
         val tv = TextView(this)
@@ -608,7 +586,6 @@ class MainActivity : AppCompatActivity() {
                 prefs.autoOpen = autoOpen.isChecked
                 prefs.wakeLock = wake.isChecked
                 prefs.autoUpdate = autoUpdate.isChecked
-                Toast.makeText(this, R.string.set_restart, Toast.LENGTH_LONG).show()
             }
             .setNegativeButton(R.string.btn_close, null)
             .show()

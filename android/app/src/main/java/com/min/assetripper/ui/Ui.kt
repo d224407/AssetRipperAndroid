@@ -7,7 +7,6 @@ import android.graphics.drawable.StateListDrawable
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
-import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
@@ -17,7 +16,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.min.assetripper.R
 
-/** Small Material 3 style view factory (colors from res/values[-night]/colors.xml). */
+/** Material 3 style view factory. */
 class Ui(private val ctx: Context) {
 
     fun dp(v: Int): Int = TypedValue.applyDimension(
@@ -32,7 +31,6 @@ class Ui(private val ctx: Context) {
         if (stroke != null) setStroke(dp(2), stroke)
     }
 
-    /** Rounded background with a primary outline when focused or pressed (keyboard/TV navigation). */
     fun stateBg(fillRes: Int, radiusDp: Int): StateListDrawable = StateListDrawable().apply {
         val primary = c(R.color.md_primary)
         addState(intArrayOf(android.R.attr.state_focused), shape(c(fillRes), radiusDp, primary))
@@ -56,7 +54,6 @@ class Ui(private val ctx: Context) {
             }
         }
 
-    /** Small uppercase section title in the primary color. */
     fun listTitle(text: String) = label(text.uppercase(), 13f, R.color.md_primary, bold = true).apply {
         letterSpacing = 0.02f
         setPadding(0, 0, 0, dp(8))
@@ -104,9 +101,5 @@ class Ui(private val ctx: Context) {
         isChecked = checked
         setTextColor(c(R.color.md_on_surface))
         setPadding(0, dp(8), 0, dp(8))
-    }
-
-    fun spacer(heightDp: Int): View = View(ctx).apply {
-        layoutParams = LinearLayout.LayoutParams(1, dp(heightDp))
     }
 }

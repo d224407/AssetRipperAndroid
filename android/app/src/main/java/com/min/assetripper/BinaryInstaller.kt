@@ -7,16 +7,15 @@ import java.io.FileOutputStream
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.util.zip.ZipInputStream
 
-/**
- * Unpacks the bundled server (assets/ar.zip) into filesDir/ar/<BUILD_TAG>/.
- * assets/ar.info carries the tag the server was built for; it must equal this app's BUILD_TAG, which
- * guarantees the app and the server binary always come from the same build.
- */
+/** Unpacks assets/ar.zip into filesDir/ar/<BUILD_TAG>/ after checking assets/ar.info matches the app. */
 object BinaryInstaller {
     const val EXE = "AssetRipper.GUI.Free"
     private const val OK_MARKER = ".ok"
+    private const val SETTINGS = "AssetRipper.Settings.json"
 
     private class Counting(inner: InputStream) : FilterInputStream(inner) {
         var count = 0L
@@ -50,11 +49,29 @@ object BinaryInstaller {
 
     private fun isInstalled(ctx: Context) = File(dir(ctx), OK_MARKER).exists() && exe(ctx).exists()
 
+    // The server saves its settings next to the executable; keep them outside the versioned folder.
+    // A missing link on an installed build means the settings were reset in the web UI.
+    private fun linkSettings(ctx: Context, installed: Boolean) {
+        val keep = File(File(ctx.filesDir, "keep").apply { mkdirs() }, SETTINGS)
+        val link = File(dir(ctx), SETTINGS).toPath()
+        try {
+            val present = Files.exists(link, LinkOption.NOFOLLOW_LINKS)
+            if (!present && installed) keep.delete()
+            if (present && !Files.isSymbolicLink(link)) File(link.toString()).copyTo(keep, true)
+            Files.deleteIfExists(link)
+            Files.createSymbolicLink(link, keep.toPath())
+        } catch (e: IOException) {
+        }
+    }
+
     fun install(ctx: Context, progress: (Int) -> Unit) {
         if (bundledTag(ctx) != BuildConfig.BUILD_TAG) {
             throw IllegalStateException(ctx.getString(R.string.err_binary_mismatch))
         }
-        if (isInstalled(ctx)) return
+        if (isInstalled(ctx)) {
+            linkSettings(ctx, true)
+            return
+        }
 
         val root = root(ctx)
         root.mkdirs()
@@ -92,7 +109,14 @@ object BinaryInstaller {
         target.deleteRecursively()
         if (!tmp.renameTo(target)) throw IOException("Cannot move files into place")
 
-        // Drop servers that belong to older builds.
-        root.listFiles()?.forEach { if (it.name != BuildConfig.BUILD_TAG) it.deleteRecursively() }
+        val keep = File(ctx.filesDir, "keep").apply { mkdirs() }
+        root.listFiles()?.forEach {
+            if (it.name == BuildConfig.BUILD_TAG) return@forEach
+            val old = File(it, SETTINGS)
+            val dst = File(keep, SETTINGS)
+            if (old.isFile && !Files.isSymbolicLink(old.toPath()) && !dst.exists()) old.copyTo(dst)
+            it.deleteRecursively()
+        }
+        linkSettings(ctx, false)
     }
 }

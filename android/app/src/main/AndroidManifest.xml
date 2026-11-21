@@ -41,7 +41,6 @@
             android:name=".InstallReceiver"
             android:exported="false" />
 
-        <!-- Lets AppCompatDelegate.setApplicationLocales() persist the language below Android 13. -->
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"

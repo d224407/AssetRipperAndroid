@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# Turns a self-contained linux-arm64 publish folder into a linux-bionic-arm64 one.
-#
-# ASP.NET Core has no linux-bionic runtime pack, but its assemblies are managed, so the publish is
-# done for linux-arm64 and the .NET runtime files plus the apphost are then replaced by bionic ones.
-#
-# Usage: scripts/make-bionic.sh [publish-dir]   (default: out)
+# Converts a linux-arm64 publish folder to linux-bionic-arm64 (runtime files and apphost swapped).
+# Usage: scripts/make-bionic.sh [publish-dir]
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${1:-out}"
@@ -16,7 +12,7 @@ echo "Runtime version: $VER"
 
 PK="$(mktemp -d)"
 
-# fetch <id> <version> <dest.zip>: nuget.org first, then the dotnet<major> feed for preview builds.
+# fetch <id> <version> <dest.zip>: nuget.org, then the dotnet<major> feed.
 fetch() {
   local id="$1" ver="$2" dest="$3" lower major url
   lower=$(echo "$id" | tr 'A-Z' 'a-z')
@@ -47,8 +43,7 @@ test -n "$APPHOST" || { echo "apphost not found in the host pack" >&2; exit 1; }
 cp -f "$APPHOST" "$OUT/$APP"
 chmod +x "$OUT/$APP"
 
-# The apphost from the pack is an unbound template: write the managed DLL name into its
-# placeholder, exactly like the SDK does when publishing.
+# Bind the apphost template to the managed DLL.
 python3 - "$OUT/$APP" "$APP.dll" << 'PY'
 import sys
 path, dll = sys.argv[1], sys.argv[2].encode()

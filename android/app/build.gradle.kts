@@ -5,8 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
 }
 
-// Values injected by CI (-P...). The app build and the bundled server are produced by the same
-// job, so BUILD_TAG identifies both and the updater can check that they match.
+// Injected by CI (-P...); BUILD_TAG pairs the APK with its bundled server.
 val buildNumber = (findProperty("buildNumber") as String?)?.toIntOrNull() ?: 1
 val upstreamVersion = (findProperty("upstreamVersion") as String?) ?: "0.0.0"
 val githubRepo = (findProperty("githubRepo") as String?) ?: "d224407/AssetRipper"
@@ -25,8 +24,7 @@ android {
     defaultConfig {
         applicationId = "com.min.assetripper"
         minSdk = 26
-        // targetSdk 28 on purpose: apps targeting 29+ may not execve() files from their own data
-        // directory, and the bundled server is an ordinary executable (same trick as Termux).
+        // targetSdk 28: 29+ cannot execve() from the app data dir.
         targetSdk = 28
         versionCode = buildNumber
         versionName = "$upstreamVersion+$buildNumber"
@@ -48,7 +46,6 @@ android {
         jvmTarget = "17"
     }
 
-    // The bundled server archive is already compressed; store it as-is so it can be streamed.
     androidResources {
         noCompress += "zip"
     }
@@ -73,8 +70,6 @@ android {
         release {
             isMinifyEnabled = false
             resValue("string", "app_name", "AssetRipper")
-            // Updates only install over a previous build if the signing key is the same, so CI
-            // must provide a persistent keystore. Without it the debug key is used (testing only).
             signingConfig = if (hasReleaseKeystore) signingConfigs.getByName("release")
             else signingConfigs.getByName("debug")
         }

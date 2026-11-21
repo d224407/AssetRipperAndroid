@@ -19,7 +19,7 @@ import java.net.ServerSocket
 import java.net.URL
 import java.util.concurrent.TimeUnit
 
-/** Runs the bundled AssetRipper server as a child process inside a foreground service. */
+/** Runs the bundled server as a child process in a foreground service. */
 class ServerService : Service() {
 
     companion object {
@@ -104,7 +104,6 @@ class ServerService : Service() {
             val pidFile = File(filesDir, "server.pid")
             val exe = BinaryInstaller.exe(this)
 
-            // The shell records its pid, then exec()s the server so the pid stays valid.
             val script = "echo \$\$ > \"\$1\"; exec \"\$2\" --port \"\$3\" --headless"
             val pb = ProcessBuilder("/system/bin/sh", "-c", script, "sh", pidFile.path, exe.path, port.toString())
             pb.directory(home)
@@ -114,7 +113,6 @@ class ServerService : Service() {
             env["DOTNET_gcServer"] = "0"
             env["DOTNET_TieredPGO"] = "0"
             env["ASSETRIPPER_ANDROID"] = "1"
-            // Use the OpenSSL bundled next to the server (see scripts/build-openssl.sh).
             env["CLR_OPENSSL_VERSION_OVERRIDE"] = "3"
             env["LD_LIBRARY_PATH"] = listOfNotNull(exe.parent, env["LD_LIBRARY_PATH"]).joinToString(":")
             env["HOME"] = home.path
@@ -157,7 +155,6 @@ class ServerService : Service() {
                 throw IllegalStateException(getString(R.string.err_exec, "exit $code"))
             }
         } catch (e: InterruptedException) {
-            // Service is shutting down.
         } catch (e: Exception) {
             val msg = e.message ?: e.javaClass.simpleName
             ServerState.log("ERROR: $msg")
@@ -167,7 +164,7 @@ class ServerService : Service() {
         }
     }
 
-    /** Kills a server left over from a previous run of this app (the child can outlive its parent). */
+    /** Kills a server left over from an earlier run. */
     private fun killStale() {
         val f = File(filesDir, "server.pid")
         val pid = try {

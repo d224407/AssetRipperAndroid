@@ -6,7 +6,6 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.widget.Toast
 
-/** Receives PackageInstaller results for in-app updates. */
 class InstallReceiver : BroadcastReceiver() {
     @Suppress("DEPRECATION")
     override fun onReceive(ctx: Context, intent: Intent) {

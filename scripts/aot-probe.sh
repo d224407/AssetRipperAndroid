@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Informational: can this source be compiled with NativeAOT for linux-bionic-arm64?
-#
-# The normal build cannot just set PublishAot=true: a NativeAOT build is one native executable
-# compiled for the target RID, so the "publish for linux-arm64 and swap in the bionic runtime"
-# trick has nothing to swap. It needs a real bionic ILCompiler pack and an ASP.NET Core runtime
-# pack for linux-bionic-arm64. This script checks both exist and then tries the direct publish.
-#
-# Usage: scripts/aot-probe.sh   (run after scripts/make-bionic.sh; never fails the build)
+# Informational: checks whether NativeAOT for linux-bionic-arm64 is possible. Never fails the build.
+# Usage: scripts/aot-probe.sh (after scripts/make-bionic.sh)
 set -uo pipefail
 cd "$(dirname "$0")/.."
 SRC_DIR="${SRC_DIR:-src}"

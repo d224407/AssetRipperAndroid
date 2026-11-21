@@ -4,7 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** Process-wide server state shared between ServerService and the UI. */
+/** Server state shared by ServerService and the UI. */
 object ServerState {
     enum class Phase { STOPPED, INSTALLING, STARTING, RUNNING, ERROR }
 

@@ -7,10 +7,7 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import java.io.File
 
-/**
- * Turns Storage Access Framework URIs into real file paths. The server runs as a separate process
- * and only understands paths, so a URI is only useful if it maps to a path the app can read.
- */
+/** Maps Storage Access Framework URIs to file paths for the server. */
 object PathResolver {
 
     fun resolve(uri: Uri, tree: Boolean): String? {
@@ -35,7 +32,7 @@ object PathResolver {
         return null
     }
 
-    /** Fallback for single files whose URI has no path: copy into the app's private imports folder. */
+    /** Copies a file with no real path into filesDir/imports. */
     fun copyToImports(ctx: Context, uri: Uri): String? {
         return try {
             var name = "import.bin"

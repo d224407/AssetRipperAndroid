@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Creates a release keystore ONCE and prints what to store as GitHub secrets.
-# In-app updates only install over an older build when both are signed with the same key, so keep
-# release.jks safe and never regenerate it.
-#
+# Creates the release keystore once and prints the GitHub secrets. Never regenerate it.
 # Usage: scripts/make-keystore.sh [file] [alias]
 set -euo pipefail
 OUT="${1:-release.jks}"

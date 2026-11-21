@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
-# Builds OpenSSL for Android arm64 (bionic) with the NDK.
-#
-# .NET's crypto shim (libSystem.Security.Cryptography.Native.OpenSsl.so) loads libssl/libcrypto at
-# run time and aborts the process when it cannot find them. Android does not expose a usable system
-# OpenSSL to app processes, so the app ships its own copy next to the server.
-#
-# Usage: scripts/build-openssl.sh <dest-dir>      (OPENSSL_VERSION defaults to 3.5.0, an LTS line)
+# Builds OpenSSL for Android arm64 with the NDK (.NET needs it; the system one is not usable).
+# Usage: scripts/build-openssl.sh <dest-dir>
 set -euo pipefail
 OPENSSL_VERSION="${OPENSSL_VERSION:-3.5.0}"
 API=26
@@ -28,8 +23,7 @@ cd "$WORK/openssl-$OPENSSL_VERSION"
 ./Configure android-arm64 "-D__ANDROID_API__=$API" shared no-tests
 make -j"$(nproc)" build_libs
 
-# The Android build may name its libraries libssl.so or libssl_3.so, and libssl's DT_NEEDED entry
-# refers to libcrypto by its SONAME. Ship every file under all the names that can be asked for.
+# Ship each lib under its SONAME and the plain names.
 for lib in ssl crypto; do
   f=$(ls lib$lib*.so* 2>/dev/null | head -1)
   test -n "$f" || { echo "lib$lib was not built" >&2; exit 1; }

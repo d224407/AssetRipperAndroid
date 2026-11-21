@@ -12,12 +12,12 @@
     <string name="btn_open">Open interface</string>
 
     <string name="card_storage">Storage access</string>
-    <string name="storage_ok">Granted. The server can read game files and write exports.</string>
-    <string name="storage_missing">Not granted. Needed to open game files and export.</string>
+    <string name="storage_ok">Granted</string>
+    <string name="storage_missing">Not granted</string>
     <string name="btn_grant">Grant access</string>
 
     <string name="card_update">Updates</string>
-    <string name="update_current">Installed: build %1$s (AssetRipper %2$s)</string>
+    <string name="version_line">Version %1$s</string>
     <string name="update_uptodate">You are on the latest build.</string>
     <string name="update_available">New build available: %1$s</string>
     <string name="btn_check">Check for updates</string>
@@ -26,9 +26,6 @@
     <string name="update_downloading">Downloading... %1$d%%</string>
     <string name="update_verifying">Verifying...</string>
     <string name="update_failed">Update failed: %1$s</string>
-    <string name="update_need_permission">Allow installs from this app, then tap update again.</string>
-    <string name="update_prompt">A new build (%1$s) is available. Download and install it now?</string>
-    <string name="btn_later">Later</string>
 
     <string name="card_tools">Tools</string>
     <string name="btn_logs">Server log</string>
@@ -46,13 +43,9 @@
     <string name="set_wake">Keep the CPU awake while the server runs</string>
     <string name="set_auto_update">Check for updates on launch</string>
     <string name="set_language">Language</string>
-    <string name="set_restart">Restart the server to apply changes.</string>
     <string name="lang_system">System default</string>
     <string name="lang_en">English</string>
     <string name="lang_vi">Tiếng Việt</string>
-
-    <string name="card_about">About</string>
-    <string name="about_text">App build %1$s\nAssetRipper %2$s\nServer: linux-bionic-arm64 (bundled)\nRepository: %3$s</string>
 
     <string name="err_abi">This app needs a 64-bit ARM (arm64-v8a) device.</string>
     <string name="err_binary_mismatch">The bundled server does not match this app build.</string>

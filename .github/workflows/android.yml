@@ -1,21 +1,14 @@
 name: Android
 
-# This repository only holds the Android app and the build scripts. The AssetRipper source is
-# checked out from SOURCE_REPO (default: the upstream project) and is never modified in git.
-# Optional repository variables: SOURCE_REPO (owner/name), SOURCE_REF (branch or tag).
-# Optional secret: SOURCE_TOKEN (only needed if SOURCE_REPO is private).
-
 on:
   push:
     branches: [main, master]
     paths-ignore:
       - "**/*.md"
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch:
     inputs:
       aot:
-        description: "Also run the experimental NativeAOT probe (informational, never published)"
+        description: "Run the NativeAOT probe"
         type: boolean
         default: false
 
@@ -32,31 +25,7 @@ env:
   OPENSSL_VERSION: "3.5.0"
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    outputs:
-      build: ${{ steps.decide.outputs.build }}
-      sha: ${{ steps.decide.outputs.sha }}
-    steps:
-      # Scheduled runs only build when the source moved since the last release.
-      - id: decide
-        env:
-          GH_TOKEN: ${{ secrets.SOURCE_TOKEN || github.token }}
-          APP_TOKEN: ${{ github.token }}
-        run: |
-          SHA=$(gh api "repos/$SOURCE_REPO/commits/${SOURCE_REF:-HEAD}" --jq .sha)
-          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          BUILD=true
-          if [ "${{ github.event_name }}" = "schedule" ]; then
-            BODY=$(GH_TOKEN="$APP_TOKEN" gh release view --repo "${{ github.repository }}" --json body --jq .body 2>/dev/null || true)
-            if echo "$BODY" | grep -q "source: $SHA"; then BUILD=false; fi
-          fi
-          echo "build=$BUILD" >> "$GITHUB_OUTPUT"
-          echo "Source $SOURCE_REPO@$SHA build=$BUILD"
-
   build:
-    needs: check
-    if: needs.check.outputs.build == 'true'
     runs-on: ubuntu-latest
     env:
       HAS_KEYSTORE: ${{ secrets.KEYSTORE_CONTENT != '' }}
@@ -64,14 +33,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: actions/checkout@v4
+        id: source
         with:
           repository: ${{ env.SOURCE_REPO }}
-          ref: ${{ needs.check.outputs.sha }}
+          ref: ${{ env.SOURCE_REF }}
           path: src
           token: ${{ secrets.SOURCE_TOKEN || github.token }}
 
-      # Use the SDK the source targets: the newest net<N> found in its project files. Try the
-      # released SDK first and fall back to the preview channel while that major is unreleased.
+      - name: Source commit
+        id: srcsha
+        run: echo "sha=$(git -C src rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      # Newest net<N> in the source; released SDK first, preview as fallback.
       - name: Detect required .NET major
         id: sdk
         run: |
@@ -96,7 +69,6 @@ jobs:
       - name: Show SDK
         run: dotnet --info | head -20
 
-      # One tag identifies the APK and the server bundled inside it.
       - name: Resolve version
         id: ver
         run: |
@@ -123,8 +95,7 @@ jobs:
       - name: Convert to linux-bionic-arm64
         run: bash scripts/make-bionic.sh out
 
-      # Android has no OpenSSL that app processes may use, and .NET aborts without one (MD5 and every
-      # other hash/crypto call go through it), so build one with the NDK and ship it with the server.
+      # .NET needs OpenSSL; Android has none usable, so build one with the NDK.
       - name: Cache OpenSSL for Android
         id: ossl
         uses: actions/cache@v4
@@ -156,7 +127,6 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      # In-app updates only install when the APK is signed with the same key as the installed app.
       - name: Prepare release keystore
         if: env.HAS_KEYSTORE == 'true'
         env:
@@ -171,7 +141,7 @@ jobs:
 
       - name: Warn about missing keystore
         if: env.HAS_KEYSTORE != 'true'
-        run: echo "::warning::No KEYSTORE_* secrets. The APK is signed with a throwaway debug key, so it will not install over a previous build. Run scripts/make-keystore.sh once and add the secrets."
+        run: echo "::warning::No KEYSTORE_* secrets; APK signed with a debug key (run scripts/make-keystore.sh)."
 
       - name: Build APK
         working-directory: android
@@ -199,15 +169,10 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.srcsha.outputs.sha }}
         run: |
           TAG="${{ steps.ver.outputs.tag }}"
-          printf '%s\n' \
-            "AssetRipper ${{ steps.ver.outputs.upstream }} for Android (build ${{ steps.ver.outputs.build }})." \
-            "" \
-            "The APK bundles the matching linux-bionic-arm64 server; the zip is the same server for Termux." \
-            "" \
-            "source: ${{ needs.check.outputs.sha }}" \
-            "source repo: $SOURCE_REPO" > notes.md
+          echo "AssetRipper ${{ steps.ver.outputs.upstream }} (build ${{ steps.ver.outputs.build }}), source ${SOURCE_SHA::7}" > notes.md
           gh release create "$TAG" \
             "AssetRipper-Android-$TAG.apk" \
             "AssetRipper-Android-$TAG.apk.sha256" \
@@ -216,7 +181,6 @@ jobs:
             --title "$TAG" \
             --notes-file notes.md
 
-      # Informational only: reports whether NativeAOT for linux-bionic-arm64 is possible at all.
       - name: AOT probe (experimental)
         if: github.event_name == 'workflow_dispatch' && inputs.aot
         continue-on-error: true

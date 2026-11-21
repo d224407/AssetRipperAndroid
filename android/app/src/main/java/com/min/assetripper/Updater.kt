@@ -16,15 +16,7 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.ZipFile
 
-/**
- * Self-update from GitHub releases.
- *
- * Every release is produced by one CI run that builds the server and the APK together and tags them
- * "v<AssetRipper version>-android.<run number>". The APK bundles that exact server, so installing the
- * APK updates app and binary as one unit. Before installing, the downloaded file is checked against
- * the published SHA-256, against this app's package name, against the release's build number, and
- * against the tag stored in its own assets/ar.info.
- */
+/** Self-update from GitHub releases; the APK is verified (SHA-256, package, version code, bundled tag) before install. */
 object Updater {
 
     data class Release(
@@ -58,7 +50,6 @@ object Updater {
         }
     }
 
-    /** Returns the latest published release, or null if it has no matching APK. */
     fun fetchLatest(): Release? {
         val json = JSONObject(
             getText("https://api.github.com/repos/" + BuildConfig.GITHUB_REPO + "/releases/latest", "application/vnd.github+json")
@@ -133,7 +124,6 @@ object Updater {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
-    /** Throws IllegalStateException if the downloaded APK is not the build the release describes. */
     fun verify(ctx: Context, r: Release, apk: File) {
         val expected = (r.sha256Url?.let { getText(it).trim().split(Regex("\\s+")).firstOrNull() } ?: r.sha256Inline)
             ?.lowercase()
@@ -147,7 +137,6 @@ object Updater {
             throw IllegalStateException("Version code does not match the release")
         }
 
-        // The APK must carry the server built for the same tag as the release.
         ZipFile(apk).use { zip ->
             val entry = zip.getEntry("assets/ar.info") ?: throw IllegalStateException("The APK has no bundled server")
             val tag = zip.getInputStream(entry).bufferedReader().use { rd ->

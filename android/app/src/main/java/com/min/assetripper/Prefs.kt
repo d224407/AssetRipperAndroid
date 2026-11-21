@@ -2,16 +2,14 @@ package com.min.assetripper
 
 import android.content.Context
 
-/** User settings. The UI language is stored by AppCompatDelegate, not here. */
+/** User settings. */
 class Prefs(ctx: Context) {
     private val sp = ctx.applicationContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
 
-    /** 0 = pick a free port on every start. */
     var port: Int
         get() = sp.getInt("port", 0)
         set(v) = sp.edit().putInt("port", v).apply()
 
-    /** 0 = no limit. Mapped to DOTNET_GCHeapHardLimit. */
     var heapMb: Int
         get() = sp.getInt("heap_mb", 0)
         set(v) = sp.edit().putInt("heap_mb", v).apply()
